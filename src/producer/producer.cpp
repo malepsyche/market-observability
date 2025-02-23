@@ -1,6 +1,10 @@
 #include "producer.h"
 #include <iostream>
+#include <iomanip>  
+#include <mutex>
+#include <chrono>
 using namespace std;
+using namespace std::chrono;
 
 KafkaProducer::KafkaProducer(string brokers, string topic) : topic_(topic) {
     kafka_config_ = rd_kafka_conf_new();
@@ -28,7 +32,16 @@ KafkaProducer::~KafkaProducer() {
     rd_kafka_destroy(kafka_producer_);
 }
 
-bool KafkaProducer::sendMessage(string message) {
+bool KafkaProducer::sendMessage(string message, int thread_id) {
+    auto now = duration_cast<microseconds>(system_clock::now().time_since_epoch()).count() % 10000;
+
+    {
+        lock_guard<mutex> lock(mutex_);    
+        cout << fixed << setprecision(6) 
+             << "[Thread " << thread_id << "] " 
+             << "Timestamp: " << now << " - Sending message: " << message << endl;
+    }
+
     int produce_status = rd_kafka_produce(
         kafka_topic_, 
         RD_KAFKA_PARTITION_UA,  // partition scheduling algorithm
@@ -39,10 +52,19 @@ bool KafkaProducer::sendMessage(string message) {
     );
 
     if (produce_status == -1) {
-        cerr << "Failed to produce message: " << rd_kafka_err2str(rd_kafka_last_error()) << endl;
+        lock_guard<mutex> lock(mutex_);     
+        cerr << "[Thread " << thread_id << "] Error: Failed to produce message at " << now << " - " << rd_kafka_err2str(rd_kafka_last_error()) << endl;
         return false;
     }
 
     rd_kafka_poll(kafka_producer_, 0);
+
+    {
+        lock_guard<mutex> lock(mutex_);     
+        cout << fixed << setprecision(6) 
+             << "[Thread " << thread_id << "] " 
+             << "Timestamp: " << now << " - Message sent successfully" << endl;
+    }
+
     return true;
 } 
