@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.10)
+project(KafkaProducer)
+set(CMAKE_CXX_STANDARD 17)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(RDKAFKA REQUIRED rdkafka)
+include_directories(/usr/include/librdkafka)
+add_executable(kafka_producer main.cpp producer.cpp)    
+target_link_libraries(kafka_producer rdkafka)
