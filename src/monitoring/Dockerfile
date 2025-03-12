@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --no-cache-dir grpcio grpcio-tools
 WORKDIR /app
 COPY ./monitoring /app
-COPY ./producer/producer_stats.proto /app
+COPY ./producer/metrics/producer_stats.proto /app
 RUN python -m grpc_tools.protoc -I/app --python_out=/app --grpc_python_out=/app /app/producer_stats.proto
 EXPOSE 50051
 CMD ["python", "process_metrics.py"]

@@ -192,7 +192,6 @@ void KafkaProducer::sendStats(const ProducerStats& producer_stats) {
     if (!status.ok()) {
         std::cerr << "gRPC request failed: " << status.error_message() << std::endl;
     }
-    // std::cout << "SEND STATS: " << std::endl;
 }
 
 void KafkaProducer::sortAndPrintLogs() {
