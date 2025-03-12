@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <mutex>
+#include "producer_stats.pb.h"   
 class KafkaProducer {
 public:
     KafkaProducer(std::string brokers, std::string topic);
@@ -13,6 +14,8 @@ public:
     double total_latency = 0;
     int total_messages = 0;
     bool sendMessage(std::string message, int thread_id);
+    static int stats_cb (rd_kafka_t* kafka_producer, char* json, size_t json_len, void* opaque);
+    static void sendStats(const ProducerStats& producer_stats);
     void sortAndPrintLogs();
 
 private:

@@ -7,7 +7,7 @@
 
 
 void produceMessages(KafkaProducer& producer, int thread_id, std::barrier<>& sync_point) {
-    int numMessages = 1000000;
+    int numMessages = 1e4;
     for (int i=0; i<numMessages; i++) {
         // sync_point.arrive_and_wait();  
         std::string message = "Thread " + std::to_string(thread_id) + " - Market Update " + std::to_string(i);
@@ -36,13 +36,14 @@ int main() {
         t.join();
     }
 
-    producer.sortAndPrintLogs();
+    // producer.sortAndPrintLogs();
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::micro> elapsed = end - begin; 
     std::cout << "[Main] All producer threads completed." << std::endl;
     std::cout << "[Main] Time Elapsed: " << elapsed.count() << " microseconds" << std::endl;
     std::cout << "[Main] Average latency: " << producer.total_latency/producer.total_messages << " microseconds" << std::endl;
-    std::cout << "[Main] Throughput: " << producer.total_messages/(elapsed.count()/1000000) << " messages per second" << std::endl;
+    std::cout << "[Main] Throughput: " << producer.total_messages/(elapsed.count()/1e6) << " messages per second" << std::endl;
 
+    while (true) {};
     return 0;
 }

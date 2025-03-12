@@ -26,6 +26,17 @@ services:
       context: ./src/producer
     depends_on:
       - kafka
+      - kafka_process_metrics
     environment:
-      KAFKA_BROKER: kafka:9092
+      KAFKA_BROKER: kafka:9092 
+    volumes:    
+      - ./src/producer/metrics:/app/metrics
 
+  kafka_process_metrics:
+    container_name: kafka_process_metrics
+    build:
+      context: ./src
+      dockerfile: monitoring/Dockerfile
+    ports: 
+      - "50051:50051"
+    

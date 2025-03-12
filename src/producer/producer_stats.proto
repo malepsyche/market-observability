@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+message ProducerStats {
+  string name = 1;
+  string client_id = 2;
+  string type = 3;
+  
+  int64 age = 4;
+  int64 msg_cnt = 5;
+  int64 tx = 6;
+  int64 rx = 7;
+  int64 txmsgs = 8;
+
+  repeated BrokerStats brokers = 9;
+  repeated TopicStats topics = 10;
+}
+
+message BrokerStats {
+  string name = 1;
+  string source = 2;
+  string state = 3;
+
+  int64 outbuf_cnt = 4;
+  int64 outbuf_msg_cnt = 5;
+
+  int64 tx = 6;
+  int64 txerrs = 7;
+  int64 rx = 8;
+  int64 rxerrs = 9;
+
+  int32 connects = 10;
+  int32 disconnects = 11;
+
+  message IntLatency {
+    float avg = 1;
+    float p99 = 2;
+  }
+
+  message OutbufLatency {
+    float avg = 1;
+    float p99 = 2;
+  }
+
+  message RTT {
+    float avg = 1;
+    float p99 = 2;
+  }
+
+  IntLatency int_latency = 12;
+  OutbufLatency outbuf_latency = 13;
+  RTT rtt = 14;
+}
+
+message TopicStats {
+  string topic = 1;
+
+  message BatchSize {
+    float avg = 1;
+    float p99 = 2;
+  }
+
+  message BatchCnt {
+    float avg = 1;
+    float p99 = 2;
+  }
+
+  BatchSize batch_size = 2;
+  BatchCnt batch_cnt = 3;
+  repeated PartitionStats partitions = 4;
+}
+
+message PartitionStats {
+  int32 partition = 1;
+  int32 broker = 2;
+  int32 leader = 3;
+  int64 msgq_cnt = 4;
+  int64 txmsgs = 5;
+  int64 rxmsgs = 6;
+}
+
+service StatsService {
+  rpc SendStats (ProducerStats) returns (Empty);
+}
+
+message Empty {}
