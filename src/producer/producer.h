@@ -5,7 +5,8 @@
 #include <vector>
 #include <string>
 #include <mutex>
-#include "producer_stats.pb.h"   
+#include "producer_stats.pb.h" 
+#include "tick.pb.h"  
 class KafkaProducer {
 public:
     KafkaProducer(std::string brokers, std::string topic);
@@ -13,10 +14,13 @@ public:
     
     double total_latency = 0;
     int total_messages = 0;
-    bool sendMessage(std::string message, int thread_id);
+    void fetch_data(int thread_id, const std::string& api_key, std::function<void(std::string)> callback);
+    void fetch_data(int thread_id);
+    bool send_broker(const market_fetcher::Tick& tick, int thread_id);
+    bool send_broker(std::string message, int thread_id);
     static int stats_cb (rd_kafka_t* kafka_producer, char* json, size_t json_len, void* opaque);
-    static void sendStats(const ProducerStats& producer_stats);
-    void sortAndPrintLogs();
+    static void send_stats(const metrics::ProducerStats& producer_stats);
+    void sort_and_print_logs();
 
 private:
     std::string topic_;

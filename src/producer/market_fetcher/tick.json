@@ -1,0 +1,16 @@
+{
+    "instrument": "VOO",
+    "timestamp_ns": 1700000000123456789,
+    "bid_price": 410.25,
+    "ask_price": 410.30,
+    "bid_size": 1200,
+    "ask_size": 900,
+    "last_trade_price": 410.27,
+    "last_trade_size": 100,
+    "trade_id": "T123456",
+    "order_book": [
+      { "price": 410.20, "size": 800, "side": "BID" },
+      { "price": 410.35, "size": 700, "side": "ASK" }
+    ]
+  }
+  

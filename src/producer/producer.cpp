@@ -10,7 +10,12 @@
 #include <nlohmann/json.hpp>  
 #include "producer_stats.pb.h" 
 #include "producer_stats.grpc.pb.h" 
-#include <grpcpp/grpcpp.h>   
+#include <grpcpp/grpcpp.h> 
+
+#include <boost/asio.hpp>
+#include <boost/beast.hpp>
+#include "tick.pb.h"
+#include "tick.grpc.pb.h"
 
 KafkaProducer::KafkaProducer(std::string brokers, std::string topic) : topic_(topic) {
     kafka_config_ = rd_kafka_conf_new();
@@ -30,7 +35,7 @@ KafkaProducer::KafkaProducer(std::string brokers, std::string topic) : topic_(to
         exit(1);
     }
 
-    if (rd_kafka_conf_set(kafka_config_, "statistics.interval.ms", "10000", NULL, 0) != RD_KAFKA_CONF_OK) {
+    if (rd_kafka_conf_set(kafka_config_, "statistics.interval.ms", "5000", NULL, 0) != RD_KAFKA_CONF_OK) {
         std::cerr << "Error configuring statistics.interval.ms" << std::endl;
         exit(1);    
     }
@@ -57,7 +62,80 @@ KafkaProducer::~KafkaProducer() {
     rd_kafka_destroy(kafka_producer_);
 }
 
-bool KafkaProducer::sendMessage(std::string message, int thread_id) {
+// void KafkaProducer::fetch_data(int thread_id, const std::string &api_key, std::function<void(std::string)> callback) {
+//         boost::asio::io_context ioc;
+//         boost::asio::ip::tcp::resolver resolver(ioc);
+//         boost::beast::websocket::stream<boost::asio::ip::tcp::socket> ws(ioc);
+
+//         boost::asio::ip::tcp::resolver::results_type ips = resolver.resolve("{MARKET_DATA_PRODIVIDER_DOMAIN}", "PORT_NUM");
+//         boost::asio::connect(ws.next_layer, ips.begin(), ips.end());
+//         ws.handshake("{MARKET_DATA_PRODIVIDER_DOMAIN}");
+// }
+
+void KafkaProducer::fetch_data(int thread_id) {
+        while (true) {
+            market_fetcher::Tick tick;
+            tick.set_instrument("VOO");
+            tick.set_timestamp_ns(1700000000123456789);
+
+            tick.set_bid_price(410.25);
+            tick.set_ask_price(410.30);
+            tick.set_bid_size(1200);
+            tick.set_ask_size(900);
+
+            tick.set_last_trade_price(410.27);
+            tick.set_last_trade_size(100);
+            tick.set_trade_id("T123456");
+
+            market_fetcher::OrderBookLevel* bid_level = tick.add_order_book();
+            bid_level->set_price(410.20);
+            bid_level->set_size(800);
+            bid_level->set_side(market_fetcher::OrderBookLevel::BID);
+
+            market_fetcher::OrderBookLevel* ask_level = tick.add_order_book();
+            ask_level->set_price(410.35);
+            ask_level->set_size(700);
+            ask_level->set_side(market_fetcher::OrderBookLevel::ASK);
+
+            send_broker(tick, thread_id);
+        }
+}
+
+bool KafkaProducer::send_broker(const market_fetcher::Tick& tick, int thread_id) {
+    auto begin = std::chrono::high_resolution_clock::now();
+    auto begin_us = std::chrono::duration_cast<std::chrono::microseconds>(begin.time_since_epoch()).count();
+
+    std::string serialized_message;
+    if (!tick.SerializeToString(&serialized_message)) {
+        std::cerr << "[Thread " << thread_id << "] Error: Failed to serialize Protobuf message." << std::endl;
+        return false;
+    }
+
+    int produce_status = rd_kafka_produce(
+        kafka_topic_,
+        RD_KAFKA_PARTITION_UA,
+        RD_KAFKA_MSG_F_COPY,
+        serialized_message.data(), serialized_message.size(),
+        nullptr, 0,  // No key
+        nullptr      // No opaque data
+    );
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto end_us = std::chrono::duration_cast<std::chrono::microseconds>(end.time_since_epoch()).count();
+    std::chrono::duration<double, std::micro> elapsed = end - begin;
+
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        total_latency += elapsed.count();
+        total_messages += 1;
+    }
+
+    rd_kafka_poll(kafka_producer_, 0);
+
+    return produce_status != -1;
+}
+
+bool KafkaProducer::send_broker(std::string message, int thread_id) {
     auto begin = std::chrono::high_resolution_clock::now();
     auto begin_us = std::chrono::duration_cast<std::chrono::microseconds>(begin.time_since_epoch()).count();
     
@@ -119,7 +197,7 @@ int KafkaProducer::stats_cb (rd_kafka_t* kafka_producer, char* json, size_t json
         try {
             nlohmann::json stats_json = nlohmann::json::parse(json_copy);
             
-            ProducerStats producer_stats;
+            metrics::ProducerStats producer_stats;
             producer_stats.set_name(stats_json["name"]);
             producer_stats.set_client_id(stats_json["client_id"]);
             producer_stats.set_type(stats_json["type"]);
@@ -130,7 +208,7 @@ int KafkaProducer::stats_cb (rd_kafka_t* kafka_producer, char* json, size_t json
             producer_stats.set_txmsgs(stats_json["txmsgs"]);
 
             for (const auto& [broker_name, broker_data] : stats_json["brokers"].items()) {
-                BrokerStats* broker_stats = producer_stats.add_brokers();
+                metrics::BrokerStats* broker_stats = producer_stats.add_brokers();
                 broker_stats->set_name(broker_name);
                 broker_stats->set_source(broker_data["source"]);
                 broker_stats->set_state(broker_data["state"]);
@@ -154,7 +232,7 @@ int KafkaProducer::stats_cb (rd_kafka_t* kafka_producer, char* json, size_t json
             }
 
             for (const auto& [topic_name, topic_data] : stats_json["topics"].items()) {
-                TopicStats* topic_stats = producer_stats.add_topics();
+                metrics::TopicStats* topic_stats = producer_stats.add_topics();
                 topic_stats->set_topic(topic_name);
                 auto batch_size = topic_stats->mutable_batch_size();
                 batch_size->set_avg(topic_data["batchsize"]["avg"]);
@@ -164,7 +242,7 @@ int KafkaProducer::stats_cb (rd_kafka_t* kafka_producer, char* json, size_t json
                 batch_cnt->set_p99(topic_data["batchcnt"]["p99"]);
                 
                 for (const auto& [partition_id, partition_data] : topic_data["partitions"].items()) {
-                    PartitionStats* partition_stats = topic_stats->add_partitions();
+                    metrics::PartitionStats* partition_stats = topic_stats->add_partitions();
                     partition_stats->set_partition(std::stoi(partition_id));
                     partition_stats->set_broker(partition_data["broker"]);
                     partition_stats->set_leader(partition_data["leader"]);
@@ -173,7 +251,7 @@ int KafkaProducer::stats_cb (rd_kafka_t* kafka_producer, char* json, size_t json
                     partition_stats->set_rxmsgs(partition_data["rxmsgs"]);
                 }
             }
-            producer->sendStats(producer_stats);
+            producer->send_stats(producer_stats);
 
         } catch (const std::exception& e) {
             std::cerr << "Error parsing Kafka stats JSON: " << e.what() << std::endl;
@@ -183,18 +261,18 @@ int KafkaProducer::stats_cb (rd_kafka_t* kafka_producer, char* json, size_t json
     return 0;
 }
 
-void KafkaProducer::sendStats(const ProducerStats& producer_stats) {
+void KafkaProducer::send_stats(const metrics::ProducerStats& producer_stats) {
     auto channel = grpc::CreateChannel("kafka_process_metrics:50051", grpc::InsecureChannelCredentials());
-    std::unique_ptr<StatsService::Stub> stub = StatsService::NewStub(channel);
+    std::unique_ptr<metrics::ProducerStatsService::Stub> stub = metrics::ProducerStatsService::NewStub(channel);
     grpc::ClientContext context;
-    Empty response;
+    metrics::Empty response;
     grpc::Status status = stub->SendStats(&context, producer_stats, &response);
     if (!status.ok()) {
         std::cerr << "gRPC request failed: " << status.error_message() << std::endl;
     }
 }
 
-void KafkaProducer::sortAndPrintLogs() {
+void KafkaProducer::sort_and_print_logs() {
     std::lock_guard<std::mutex> lock(mutex);
     for (const auto& pair : logs) {
         std::cout << pair.second << std::endl;

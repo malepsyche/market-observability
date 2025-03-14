@@ -10,8 +10,9 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(RDKAFKA REQUIRED rdkafka)
 
 add_executable(kafka_producer main.cpp producer.cpp) 
+add_subdirectory(market_fetcher)
 add_subdirectory(metrics)
-target_link_libraries(kafka_producer rdkafka producer_metrics)      
+target_link_libraries(kafka_producer rdkafka tick producer_metrics)      
 
 message("CMAKE CURRENT SOURCE DIR: " ${CMAKE_CURRENT_SOURCE_DIR})
 message("CMAKE CURRENT BINARY DIR: " ${CMAKE_CURRENT_BINARY_DIR})

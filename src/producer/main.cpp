@@ -6,12 +6,15 @@
 #include <barrier>
 
 
-void produceMessages(KafkaProducer& producer, int thread_id, std::barrier<>& sync_point) {
-    int numMessages = 1e4;
-    for (int i=0; i<numMessages; i++) {
-        // sync_point.arrive_and_wait();  
-        std::string message = "Thread " + std::to_string(thread_id) + " - Market Update " + std::to_string(i);
-        producer.sendMessage(message, thread_id);
+void produce_messages(KafkaProducer& producer, int thread_id, std::barrier<>& sync_point) {
+    // int numMessages = 1e4;
+    // for (int i=0; i<numMessages; i++) {
+    //     // sync_point.arrive_and_wait();  
+    //     std::string message = "Thread " + std::to_string(thread_id) + " - Market Update " + std::to_string(i);
+    //     producer.send_broker(message, thread_id);
+    // }
+    while (true) {
+        producer.fetch_data(thread_id);
     }
 }
 
@@ -30,13 +33,13 @@ int main() {
     std::cout << "[Main] Starting " << num_threads << " producer threads..." << std::endl;
 
     for (int i=0; i<num_threads; i++) {
-        threads.emplace_back(produceMessages, std::ref(producer), i, std::ref(sync_point));
+        threads.emplace_back(produce_messages, std::ref(producer), i, std::ref(sync_point));
     }
     for (auto& t : threads) {
         t.join();
     }
 
-    // producer.sortAndPrintLogs();
+    // producer.sort_and_print_logs();
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::micro> elapsed = end - begin; 
     std::cout << "[Main] All producer threads completed." << std::endl;

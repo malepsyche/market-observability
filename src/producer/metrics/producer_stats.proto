@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+package metrics;
+
 message ProducerStats {
   string name = 1;
   string client_id = 2;
@@ -78,7 +80,7 @@ message PartitionStats {
   int64 rxmsgs = 6;
 }
 
-service StatsService {
+service ProducerStatsService {
   rpc SendStats (ProducerStats) returns (Empty);
 }
 

@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package market_fetcher;
+
+message Tick {
+  string instrument = 1;  
+  int64 timestamp_ns = 2; 
+
+  double bid_price = 3;
+  double ask_price = 4;
+  uint32 bid_size = 5;
+  uint32 ask_size = 6;
+
+  double last_trade_price = 7;
+  uint32 last_trade_size = 8;
+  string trade_id = 9;  
+
+  repeated OrderBookLevel order_book = 10;
+}
+
+message OrderBookLevel {
+  double price = 1;
+  uint32 size = 2;
+  enum Side {
+    BID = 0;
+    ASK = 1;
+  }
+  Side side = 3;
+}
+
+enum MarketEventType {
+  UNKNOWN = 0;
+  TRADE = 1;
+  QUOTE_UPDATE = 2;
+  ORDER_BOOK_UPDATE = 3;
+}
+
+service TickService {
+  rpc SendTick (Tick) returns (Empty);
+}
+
+message Empty {}
